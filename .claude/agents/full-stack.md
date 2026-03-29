@@ -37,12 +37,20 @@ Before doing any work, check and clone any missing sibling repos:
 for repo in crypto-portfolio-backend crypto-portfolio-frontend-public crypto-portfolio-data; do
   if [ ! -d "../$repo" ]; then
     echo "Cloning $repo..."
-    git clone "https://github.com/FutureGadgetInvestments/$repo" "../$repo"
+    git clone "https://github.com/FutureGadgetInvestments/${repo}.git" "../$repo"
   else
     echo "$repo: present"
   fi
 done
 ```
+
+All three sibling repos use the `main` branch. Clone URLs:
+
+| Repo | Clone URL |
+|------|-----------|
+| `crypto-portfolio-backend` | `https://github.com/FutureGadgetInvestments/crypto-portfolio-backend.git` |
+| `crypto-portfolio-frontend-public` | `https://github.com/FutureGadgetInvestments/crypto-portfolio-frontend-public.git` |
+| `crypto-portfolio-data` | `https://github.com/FutureGadgetInvestments/crypto-portfolio-data.git` |
 
 Only clone repos actually needed for the current task — but always check all four.
 
