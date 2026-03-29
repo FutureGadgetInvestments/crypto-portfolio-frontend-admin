@@ -1,10 +1,10 @@
 baseURL = "/"
 languageCode = "en-us"
-title = "Admin App"
+title = "Crypto Portfolio Admin"
 theme = "admin"
 
 [params]
-  description = "A lightweight admin interface"
+  description = "Crypto investment tracker — manage positions, log transactions, track XIRR"
   backendURL = "http://localhost:8080"
 
   # Firebase config — nested to match HUGO_PARAMS_FIREBASE_* env var mapping

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir -p \"C:/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-data\")",
+      "Bash(mkdir -p \"C:/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-backend\")",
+      "Bash(mkdir -p \"C:/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public/themes/public/layouts/_default\")",
+      "Bash(mkdir -p \"C:/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public/themes/public/layouts/partials\")",
+      "Bash(mkdir -p \"C:/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public/content/portfolio\")",
+      "Bash(sort echo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public rev-parse --show-toplevel)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public ls-files --others --directory)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public add themes/)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public status)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public ls-files --others themes/public/theme.toml)",
+      "Bash(git -C /c/Users/nguye/IdeaProjects/FutureGadgetInvestments/crypto-portfolio-frontend-public check-ignore -v themes/public/theme.toml)"
+    ]
+  }
+}

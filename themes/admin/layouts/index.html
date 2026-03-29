@@ -4,7 +4,7 @@
     <div class="card shadow-sm border-0">
       <div class="card-body p-4">
         <div class="text-center mb-4">
-          <i class="bi bi-grid fs-1 text-primary"></i>
+          <i class="bi bi-graph-up fs-1 text-primary"></i>
           <h1 class="h4 mt-2 mb-1">{{ .Site.Title }}</h1>
           <p class="text-muted small">{{ .Site.Params.description }}</p>
         </div>
@@ -31,8 +31,11 @@
             <i class="bi bi-check-circle me-1"></i>Signed in as <strong id="home-user-email"></strong>
           </p>
           <div class="d-grid gap-2">
-            <a id="btn-go-items" href="{{ "items/" | relURL }}" class="btn btn-primary">
-              <i class="bi bi-list-ul me-1"></i>Go to Items
+            <a id="btn-go-positions" href="{{ "positions/" | relURL }}" class="btn btn-primary">
+              <i class="bi bi-currency-bitcoin me-1"></i>Go to Positions
+            </a>
+            <a id="btn-go-transactions" href="{{ "transactions/" | relURL }}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left-right me-1"></i>Go to Transactions
             </a>
             <p id="admin-hint" class="text-muted small mb-0 d-none">
               <i class="bi bi-lock me-1"></i>You need admin access to use this app.
@@ -54,9 +57,11 @@
       document.getElementById('home-user-email').textContent = user.email;
 
       if (!isEmailAllowed(user.email)) {
-        const btn = document.getElementById('btn-go-items');
-        btn.removeAttribute('href');
-        btn.classList.add('disabled');
+        ['btn-go-positions', 'btn-go-transactions'].forEach(id => {
+          const btn = document.getElementById(id);
+          btn.removeAttribute('href');
+          btn.classList.add('disabled');
+        });
         document.getElementById('admin-hint').classList.remove('d-none');
       }
     } else {

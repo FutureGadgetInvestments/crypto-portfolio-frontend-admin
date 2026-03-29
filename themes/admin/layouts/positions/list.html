@@ -1,0 +1,345 @@
+{{ define "main" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="h5 mb-0 fw-semibold">{{ .Title }}</h2>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#positionModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg me-1"></i>New Position
+  </button>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4" id="summary-cards" style="display:none!important">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Total Invested</div>
+        <div class="fw-semibold fs-5" id="summary-invested">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Current Value (Active)</div>
+        <div class="fw-semibold fs-5" id="summary-value">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Unrealized P&amp;L</div>
+        <div class="fw-semibold fs-5" id="summary-pnl">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Portfolio XIRR</div>
+        <div class="fw-semibold fs-5" id="summary-xirr">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Auth guard -->
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to manage positions.
+</div>
+
+<!-- Loading -->
+<div id="loading" class="text-center py-5">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<!-- Empty state -->
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-currency-bitcoin fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No positions yet. Add your first one!</p>
+</div>
+
+<!-- Positions table -->
+<div class="card shadow-sm border-0 d-none" id="items-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Asset</th>
+            <th>Label</th>
+            <th>Status</th>
+            <th class="text-end">Invested</th>
+            <th class="text-end">Current Value</th>
+            <th class="text-end">P&amp;L</th>
+            <th class="text-end">XIRR</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="positionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="modal-title">New Position</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="item-id">
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-asset">Asset</label>
+          <input type="text" class="form-control" id="item-asset" placeholder="e.g. BTC, ETH, SOL" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-label">
+            Label <span class="text-muted fw-normal">(optional)</span>
+          </label>
+          <input type="text" class="form-control" id="item-label" placeholder="e.g. BTC long-term hold">
+        </div>
+        <div class="mb-3 d-none" id="status-field">
+          <label class="form-label small fw-medium" for="item-status">Status</label>
+          <select class="form-select" id="item-status">
+            <option value="active">Active</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-notes">
+            Notes <span class="text-muted fw-normal">(optional)</span>
+          </label>
+          <textarea class="form-control" id="item-notes" rows="3" placeholder="Thesis, outcome, etc."></textarea>
+        </div>
+        <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center pt-4">
+        <i class="bi bi-trash3 fs-2 text-danger"></i>
+        <p class="mt-2 mb-1 fw-medium">Delete this position?</p>
+        <p class="text-muted small">All transactions for this position will also be deleted.</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const RESOURCE_PATH = '/positions';
+
+  const positionModal = new bootstrap.Modal(document.getElementById('positionModal'));
+  const deleteModal   = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    await loadItems();
+  });
+
+  async function loadItems() {
+    try {
+      const positions = await api('GET', RESOURCE_PATH);
+      document.getElementById('loading').classList.add('d-none');
+      if (!positions || positions.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+      renderSummary(positions);
+      renderItems(positions);
+      document.getElementById('items-card').classList.remove('d-none');
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      showToast('Failed to load positions: ' + e.message, 'danger');
+    }
+  }
+
+  function renderSummary(positions) {
+    const active = positions.filter(p => p.status === 'active');
+    const totalInvested = positions.reduce((s, p) => s + (p.total_invested_usd || 0), 0);
+    const currentValue  = active.reduce((s, p) => s + (p.current_value_usd || 0), 0);
+    const netCostActive = active.reduce((s, p) => s + (p.net_cost_usd || 0), 0);
+    const pnl           = currentValue - netCostActive;
+    const portfolioXirr = positions.find(p => p.portfolio_xirr != null)?.portfolio_xirr ?? null;
+
+    setText('summary-invested', fmtUsd(totalInvested));
+    setText('summary-value',    fmtUsd(currentValue));
+
+    const pnlEl = document.getElementById('summary-pnl');
+    pnlEl.textContent = fmtUsd(pnl);
+    pnlEl.className   = 'fw-semibold fs-5 ' + (pnl >= 0 ? 'text-success' : 'text-danger');
+
+    const xirrEl = document.getElementById('summary-xirr');
+    if (portfolioXirr != null) {
+      xirrEl.textContent = fmtPct(portfolioXirr);
+      xirrEl.className   = 'fw-semibold fs-5 ' + (portfolioXirr >= 0 ? 'text-success' : 'text-danger');
+    } else {
+      xirrEl.textContent = '—';
+      xirrEl.className   = 'fw-semibold fs-5';
+    }
+
+    document.getElementById('summary-cards').style.removeProperty('display');
+  }
+
+  function renderItems(positions) {
+    const tbody = document.getElementById('items-tbody');
+    tbody.innerHTML = positions.map(p => {
+      const isActive  = p.status === 'active';
+      const pnl       = (p.current_value_usd || 0) - (p.net_cost_usd || 0);
+      const statusBadge = isActive
+        ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>'
+        : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Closed</span>';
+      const pnlCell  = isActive
+        ? `<span class="${pnl >= 0 ? 'text-success' : 'text-danger'}">${fmtUsd(pnl)}</span>`
+        : '<span class="text-muted">—</span>';
+      const valCell  = isActive ? fmtUsd(p.current_value_usd || 0) : '<span class="text-muted">—</span>';
+      const xirrCell = p.xirr != null
+        ? `<span class="${p.xirr >= 0 ? 'text-success' : 'text-danger'}">${fmtPct(p.xirr)}</span>`
+        : '<span class="text-muted">—</span>';
+      return `
+        <tr>
+          <td class="ps-3 fw-semibold">${escHtml(p.asset)}</td>
+          <td class="text-muted small">${escHtml(p.label || '—')}</td>
+          <td>${statusBadge}</td>
+          <td class="text-end">${fmtUsd(p.total_invested_usd || 0)}</td>
+          <td class="text-end">${valCell}</td>
+          <td class="text-end">${pnlCell}</td>
+          <td class="text-end">${xirrCell}</td>
+          <td class="text-end pe-3 text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary me-1"
+               href="{{ "transactions/" | relURL }}?position=${encodeURIComponent(p.id)}"
+               title="View transactions">
+              <i class="bi bi-arrow-left-right"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-secondary me-1"
+                    onclick='openEditModal(${JSON.stringify(p)})' title="Edit">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="openDeleteModal('${p.id}')" title="Delete">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent = 'New Position';
+    document.getElementById('item-id').value    = '';
+    document.getElementById('item-asset').value = '';
+    document.getElementById('item-label').value = '';
+    document.getElementById('item-notes').value = '';
+    document.getElementById('status-field').classList.add('d-none');
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  function openEditModal(p) {
+    document.getElementById('modal-title').textContent = 'Edit Position';
+    document.getElementById('item-id').value    = p.id;
+    document.getElementById('item-asset').value = p.asset;
+    document.getElementById('item-label').value = p.label || '';
+    document.getElementById('item-status').value = p.status;
+    document.getElementById('item-notes').value = p.notes || '';
+    document.getElementById('status-field').classList.remove('d-none');
+    document.getElementById('modal-error').classList.add('d-none');
+    positionModal.show();
+  }
+
+  async function saveItem() {
+    const id     = document.getElementById('item-id').value;
+    const asset  = document.getElementById('item-asset').value.trim().toUpperCase();
+    const label  = document.getElementById('item-label').value.trim();
+    const status = document.getElementById('item-status').value;
+    const notes  = document.getElementById('item-notes').value.trim();
+    const errEl  = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    if (!asset) {
+      errEl.textContent = 'Asset is required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+
+    const btn = document.getElementById('modal-save-btn');
+    btn.disabled = true;
+    try {
+      if (id) {
+        await api('PUT', `${RESOURCE_PATH}/${id}`, { asset, label, status, notes });
+      } else {
+        await api('POST', RESOURCE_PATH, { asset, label, notes });
+      }
+      positionModal.hide();
+      await loadItems();
+      document.getElementById('empty-state').classList.add('d-none');
+      document.getElementById('items-card').classList.remove('d-none');
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  let pendingDeleteId = null;
+
+  function openDeleteModal(id) {
+    pendingDeleteId = id;
+    deleteModal.show();
+  }
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await api('DELETE', `${RESOURCE_PATH}/${pendingDeleteId}`);
+      deleteModal.hide();
+      await loadItems();
+    } catch (e) {
+      showToast('Delete failed: ' + e.message, 'danger');
+    }
+  });
+
+  function fmtUsd(n) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD',
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(n);
+  }
+
+  function fmtPct(n) {
+    return (n * 100).toFixed(1) + '%';
+  }
+
+  function setText(id, val) {
+    document.getElementById(id).textContent = val;
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+</script>
+{{ end }}

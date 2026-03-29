@@ -1,0 +1,322 @@
+{{ define "main" }}
+{{ $positionFilter := "" }}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="h5 mb-0 fw-semibold">Transactions</h2>
+    <div id="filter-label" class="text-muted small mt-1 d-none">
+      Filtered by position: <strong id="filter-position-name"></strong>
+      <a href="{{ "transactions/" | relURL }}" class="ms-2 text-decoration-none small">Clear</a>
+    </div>
+  </div>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#txnModal" onclick="openCreateModal()">
+    <i class="bi bi-plus-lg me-1"></i>Log Transaction
+  </button>
+</div>
+
+<!-- Auth guard -->
+<div id="auth-guard" class="alert alert-warning d-none">
+  <i class="bi bi-lock me-1"></i>You must be <a href="{{ "" | relURL }}">signed in</a> to view transactions.
+</div>
+
+<!-- Loading -->
+<div id="loading" class="text-center py-5">
+  <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+<!-- Empty state -->
+<div id="empty-state" class="text-center py-5 d-none">
+  <i class="bi bi-arrow-left-right fs-1 text-muted"></i>
+  <p class="text-muted mt-2">No transactions yet. Log your first one!</p>
+</div>
+
+<!-- Transactions table -->
+<div class="card shadow-sm border-0 d-none" id="items-card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Date</th>
+            <th>Asset</th>
+            <th>Type</th>
+            <th class="text-end">Amount</th>
+            <th>Notes</th>
+            <th class="text-end pe-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="txnModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="modal-title">Log Transaction</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="item-id">
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-position">Position</label>
+          <select class="form-select" id="item-position" required>
+            <option value="">Loading positions…</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-date">Date</label>
+          <input type="date" class="form-control" id="item-date" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-type">Type</label>
+          <select class="form-select" id="item-type">
+            <option value="deposit">Deposit — buying in (cash leaves wallet)</option>
+            <option value="withdrawal">Withdrawal — taking proceeds (cash enters wallet)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-amount">Amount (USD)</label>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <input type="number" class="form-control" id="item-amount"
+                   placeholder="0.00" min="0.01" step="0.01" required>
+          </div>
+          <div class="form-text" id="amount-hint">
+            Enter the positive dollar amount — sign is determined by type.
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-medium" for="item-notes">
+            Notes <span class="text-muted fw-normal">(optional)</span>
+          </label>
+          <input type="text" class="form-control" id="item-notes" placeholder="e.g. Initial buy at $45k">
+        </div>
+        <div id="modal-error" class="alert alert-danger py-2 small d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="modal-save-btn" onclick="saveItem()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center pt-4">
+        <i class="bi bi-trash3 fs-2 text-danger"></i>
+        <p class="mt-2 mb-1 fw-medium">Delete this transaction?</p>
+        <p class="text-muted small">XIRR will be recomputed.</p>
+      </div>
+      <div class="modal-footer border-0 justify-content-center pt-0 pb-3">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-danger btn-sm" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}
+
+{{ define "page-scripts" }}
+<script>
+  const RESOURCE_PATH   = '/transactions';
+  const POSITIONS_PATH  = '/positions';
+
+  const txnModal    = new bootstrap.Modal(document.getElementById('txnModal'));
+  const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+
+  // Read optional ?position= query param
+  const urlParams     = new URLSearchParams(window.location.search);
+  const filterPosId   = urlParams.get('position') || '';
+  let   allPositions  = [];
+
+  firebase.auth().onAuthStateChanged(async user => {
+    if (!user) {
+      document.getElementById('loading').classList.add('d-none');
+      document.getElementById('auth-guard').classList.remove('d-none');
+      return;
+    }
+    await Promise.all([loadPositions(), loadItems()]);
+  });
+
+  async function loadPositions() {
+    try {
+      allPositions = await api('GET', POSITIONS_PATH);
+      populatePositionDropdown(allPositions);
+      if (filterPosId) {
+        const pos = allPositions.find(p => p.id === filterPosId);
+        if (pos) {
+          document.getElementById('filter-label').classList.remove('d-none');
+          document.getElementById('filter-position-name').textContent = `${pos.asset}${pos.label ? ' — ' + pos.label : ''}`;
+        }
+      }
+    } catch (_) {}
+  }
+
+  function populatePositionDropdown(positions) {
+    const sel = document.getElementById('item-position');
+    sel.innerHTML = '<option value="">Select a position…</option>' +
+      positions.map(p =>
+        `<option value="${p.id}">${escHtml(p.asset)}${p.label ? ' — ' + escHtml(p.label) : ''}</option>`
+      ).join('');
+  }
+
+  async function loadItems() {
+    try {
+      const url = filterPosId ? `${RESOURCE_PATH}?position_id=${encodeURIComponent(filterPosId)}` : RESOURCE_PATH;
+      const txns = await api('GET', url);
+      document.getElementById('loading').classList.add('d-none');
+      if (!txns || txns.length === 0) {
+        document.getElementById('empty-state').classList.remove('d-none');
+        return;
+      }
+      renderItems(txns);
+      document.getElementById('items-card').classList.remove('d-none');
+    } catch (e) {
+      document.getElementById('loading').classList.add('d-none');
+      showToast('Failed to load transactions: ' + e.message, 'danger');
+    }
+  }
+
+  function renderItems(txns) {
+    const tbody = document.getElementById('items-tbody');
+    tbody.innerHTML = txns.map(t => {
+      const isDeposit = t.type === 'deposit';
+      const typeBadge = isDeposit
+        ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Deposit</span>'
+        : '<span class="badge bg-success-subtle text-success border border-success-subtle">Withdrawal</span>';
+      const amtDisplay = isDeposit
+        ? `<span class="text-danger">−${fmtUsd(Math.abs(t.amount_usd))}</span>`
+        : `<span class="text-success">+${fmtUsd(Math.abs(t.amount_usd))}</span>`;
+      return `
+        <tr>
+          <td class="ps-3 text-nowrap">${escHtml(t.date)}</td>
+          <td class="fw-medium">${escHtml(t.asset || '—')}</td>
+          <td>${typeBadge}</td>
+          <td class="text-end">${amtDisplay}</td>
+          <td class="text-muted small">${escHtml(t.notes || '—')}</td>
+          <td class="text-end pe-3 text-nowrap">
+            <button class="btn btn-sm btn-outline-secondary me-1"
+                    onclick='openEditModal(${JSON.stringify(t)})' title="Edit">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="openDeleteModal('${t.id}')" title="Delete">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openCreateModal() {
+    document.getElementById('modal-title').textContent   = 'Log Transaction';
+    document.getElementById('item-id').value             = '';
+    document.getElementById('item-position').value       = filterPosId || '';
+    document.getElementById('item-date').value           = new Date().toISOString().slice(0, 10);
+    document.getElementById('item-type').value           = 'deposit';
+    document.getElementById('item-amount').value         = '';
+    document.getElementById('item-notes').value          = '';
+    document.getElementById('modal-error').classList.add('d-none');
+  }
+
+  function openEditModal(t) {
+    document.getElementById('modal-title').textContent   = 'Edit Transaction';
+    document.getElementById('item-id').value             = t.id;
+    document.getElementById('item-position').value       = t.position_id;
+    document.getElementById('item-date').value           = t.date;
+    document.getElementById('item-type').value           = t.type;
+    // Store absolute value — sign is set by type
+    document.getElementById('item-amount').value         = Math.abs(t.amount_usd);
+    document.getElementById('item-notes').value          = t.notes || '';
+    document.getElementById('modal-error').classList.add('d-none');
+    txnModal.show();
+  }
+
+  async function saveItem() {
+    const id          = document.getElementById('item-id').value;
+    const position_id = document.getElementById('item-position').value;
+    const date        = document.getElementById('item-date').value;
+    const type        = document.getElementById('item-type').value;
+    const rawAmount   = parseFloat(document.getElementById('item-amount').value);
+    const notes       = document.getElementById('item-notes').value.trim();
+    const errEl       = document.getElementById('modal-error');
+    errEl.classList.add('d-none');
+
+    if (!position_id) {
+      errEl.textContent = 'Please select a position.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    if (!date) {
+      errEl.textContent = 'Date is required.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    if (isNaN(rawAmount) || rawAmount <= 0) {
+      errEl.textContent = 'Enter a positive dollar amount.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+
+    // Deposits are cash out of wallet → negative; withdrawals are cash in → positive
+    const amount_usd = type === 'deposit' ? -rawAmount : rawAmount;
+
+    const btn = document.getElementById('modal-save-btn');
+    btn.disabled = true;
+    try {
+      if (id) {
+        await api('PUT', `${RESOURCE_PATH}/${id}`, { date, type, amount_usd, notes });
+      } else {
+        await api('POST', RESOURCE_PATH, { position_id, date, type, amount_usd, notes });
+      }
+      txnModal.hide();
+      await loadItems();
+      document.getElementById('empty-state').classList.add('d-none');
+      document.getElementById('items-card').classList.remove('d-none');
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  let pendingDeleteId = null;
+
+  function openDeleteModal(id) {
+    pendingDeleteId = id;
+    deleteModal.show();
+  }
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await api('DELETE', `${RESOURCE_PATH}/${pendingDeleteId}`);
+      deleteModal.hide();
+      await loadItems();
+    } catch (e) {
+      showToast('Delete failed: ' + e.message, 'danger');
+    }
+  });
+
+  function fmtUsd(n) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD',
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(n);
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+</script>
+{{ end }}
